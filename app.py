@@ -143,10 +143,10 @@ def comment():
     comments = cursor.fetchall()
     conn.close()
 
-    # VULNERABLE: No output encoding
+    # FIXED: Properly escape user input to prevent XSS
     comments_html = ''
     for user, comment_text in comments:
-        comments_html += f'<div><strong>{user}:</strong> {comment_text}</div>'
+        comments_html += f'<div><strong>{user}:</strong> {escape(comment_text)}</div>'
 
     return f'''
     <html>
