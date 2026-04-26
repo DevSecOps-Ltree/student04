@@ -209,9 +209,13 @@ def view_file():
     filename = request.args.get('name', '')
 
     if filename:
-        # VULNERABLE: No path validation
+        # FIXED: Validate and sanitize the file path
+        base_path = '/safe/directory/'
+        safe_path = os.path.join(base_path, os.path.normpath(filename))
+        if not safe_path.startswith(base_path):
+            return '<p>Invalid file path.</p><p><a href="/">Back</a></p>'
         try:
-            with open(filename, 'r') as f:
+            with open(safe_path, 'r') as f:
                 content = f.read()
             return f'''
             <html>
