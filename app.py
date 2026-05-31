@@ -5,13 +5,14 @@ WARNING: This application contains INTENTIONAL security vulnerabilities
 DO NOT deploy to production!
 """
 
-from flask import Flask, request, render_template_string, redirect
+from flask import Flask, request, render_template_string, redirect, escape
 import sqlite3
 import os
 import pickle
 import base64
 import hashlib
 import subprocess
+import json
 
 app = Flask(__name__)
 
@@ -98,7 +99,7 @@ def search():
         <body>
             <h1>User Search</h1>
             <form action="/search" method="get">
-                <input type="text" name="q" value="{query}">
+                <input type="text" name="q" value="{escape(query)}">
                 <input type="submit" value="Search">
             </form>
             {output}
@@ -142,10 +143,10 @@ def comment():
     comments = cursor.fetchall()
     conn.close()
 
-    # VULNERABLE: No output encoding
+    # FIXED: Properly escape user input to prevent XSS
     comments_html = ''
     for user, comment_text in comments:
-        comments_html += f'<div><strong>{user}:</strong> {comment_text}</div>'
+        comments_html += f'<div><strong>{escape(user)}:</strong> {escape(comment_text)}</div>'
 
     return f'''
     <html>
@@ -208,9 +209,13 @@ def view_file():
     filename = request.args.get('name', '')
 
     if filename:
-        # VULNERABLE: No path validation
+        # FIXED: Validate and sanitize the file path
+        base_path = "/safe_directory/"
+        safe_path = os.path.join(base_path, os.path.normpath(filename).lstrip("/"))
+        if not os.path.commonpath([base_path, safe_path]).startswith(base_path):
+            return '<p>Invalid file path.</p><p><a href="/">Back</a></p>'
         try:
-            with open(filename, 'r') as f:
+            with open(safe_path, 'r') as f:
                 content = f.read()
             return f'''
             <html>
@@ -249,9 +254,9 @@ def deserialize():
 
     if data:
         try:
-            # FIXED: Unpickling untrusted data
+            # FIXED: Use JSON instead of pickle for deserialization
             decoded = base64.b64decode(data)
-            obj = pickle.loads(decoded)
+            obj = json.loads(decoded)
             return f'''
             <html>
             <body>
@@ -269,7 +274,7 @@ def deserialize():
         <body>
             <h1>Deserialize Data</h1>
             <form action="/deserialize" method="get">
-                <input type="text" name="data" placeholder="Enter base64 encoded pickle data">
+                <input type="text" name="data" placeholder="Enter base64 encoded JSON data">
                 <input type="submit" value="Deserialize">
             </form>
             <p><a href="/">Back</a></p>
